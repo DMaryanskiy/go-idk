@@ -8,11 +8,11 @@ Done:
 1. Build simple and basic users CRUD concentrating on best design practices in Go and Backend Development
 
 TODO:
-2. Add proper migration tool
-3. Add auth handlers, secure passwords and email codes to verify user
-4. Add chat via websockets to let users communicate with each other
-5. Add CI/CD pipelines to project
-6. ...
+1. Add proper migration tool
+2. Add auth handlers, secure passwords and email codes to verify user
+3. Add chat via websockets to let users communicate with each other
+4. Add CI/CD pipelines to project
+5. ...
 
 ## Setup
 
