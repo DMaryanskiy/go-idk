@@ -1,6 +1,9 @@
 package domain
 
-import "time"
+import (
+	"context"
+	"time"
+)
 
 // Entity
 type User struct {
@@ -32,19 +35,19 @@ type PaginationResponse struct {
 
 // Repository interface (contract)
 type UserRepository interface {
-	Create(user *User) error
-	GetByID(id int) (*User, error)
-	GetByEmail(email string) (*User, error)
-	GetAll(limit, offset int) ([]User, int, error)
-	Update(id int, user *User) error
-	Delete(id int) error
+	Create(ctx context.Context, user *User) error
+	GetByID(ctx context.Context, id int) (*User, error)
+	GetByEmail(ctx context.Context, email string) (*User, error)
+	GetAll(ctx context.Context, limit, offset int) ([]User, int, error)
+	Update(ctx context.Context, id int, user *User) error
+	Delete(ctx context.Context, id int) error
 }
 
 // Service interface (contract)
 type UserService interface {
-	CreateUser(req *CreateUserRequest) (*User, error)
-	GetUser(id int) (*User, error)
-	GetUsers(limit, offset int) (*PaginationResponse, error)
-	UpdateUser(id int, req *UpdateUserRequest) (*User, error)
-	DeleteUser(id int) error
+	CreateUser(ctx context.Context, req *CreateUserRequest) (*User, error)
+	GetUser(ctx context.Context, id int) (*User, error)
+	GetUsers(ctx context.Context, limit, offset int) (*PaginationResponse, error)
+	UpdateUser(ctx context.Context, id int, req *UpdateUserRequest) (*User, error)
+	DeleteUser(ctx context.Context, id int) error
 }

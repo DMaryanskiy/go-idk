@@ -1,8 +1,10 @@
 package repository
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
+	"time"
 
 	"github.com/DMaryanskiy/go-idk/internal/domain"
 	"github.com/DMaryanskiy/go-idk/pkg/database"
@@ -16,13 +18,16 @@ func NewUserRepository(db *database.DB) domain.UserRepository {
 	return &userRepository{db: db}
 }
 
-func (r *userRepository) Create(user *domain.User) error {
+func (r *userRepository) Create(ctx context.Context, user *domain.User) error {
+	ctx, cancel := context.WithTimeout(ctx, 5 * time.Second)
+	defer cancel()
+
 	query := `
-	INSERT INTO users (name, email)
-	($1, $2)
+	INSERT INTO users (email, name)
+	VALUES ($1, $2)
 	RETURNING id, created_at, updated_at`
 
-	err := r.db.QueryRow(query, user.Name, user.Email).Scan(
+	err := r.db.QueryRowContext(ctx, query, user.Email, user.Name).Scan(
 		&user.ID,
 		&user.CreatedAt,
 		&user.UpdatedAt,
@@ -35,15 +40,18 @@ func (r *userRepository) Create(user *domain.User) error {
 	return nil
 }
 
-func (r *userRepository) GetByID(id int) (*domain.User, error) {
+func (r *userRepository) GetByID(ctx context.Context, id int) (*domain.User, error) {
+	ctx, cancel := context.WithTimeout(ctx, 5 * time.Second)
+	defer cancel()
+
 	user := &domain.User{}
 	query := `
-	SELECT id, name, email, created_at, updated_at
+	SELECT id, email, name, created_at, updated_at
 	FROM users
 	WHERE id = $1;`
 
-	err := r.db.QueryRow(query, id).Scan(
-		&user.ID, &user.Name, &user.Email, &user.CreatedAt, &user.UpdatedAt,
+	err := r.db.QueryRowContext(ctx, query, id).Scan(
+		&user.ID, &user.Email, &user.Name, &user.CreatedAt, &user.UpdatedAt,
 	)
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -55,15 +63,18 @@ func (r *userRepository) GetByID(id int) (*domain.User, error) {
 	return user, nil
 }
 
-func (r *userRepository) GetByEmail(email string) (*domain.User, error) {
+func (r *userRepository) GetByEmail(ctx context.Context, email string) (*domain.User, error) {
+	ctx, cancel := context.WithTimeout(ctx, 5 * time.Second)
+	defer cancel()
+
 	user := &domain.User{}
 	query := `
-	SELECT id, name, email, created_at, updated_at
+	SELECT id, email, name, created_at, updated_at
 	FROM users
 	WHERE email = $1;`
 
-	err := r.db.QueryRow(query, email).Scan(
-		&user.ID, &user.Name, &user.Email, &user.CreatedAt, &user.UpdatedAt,
+	err := r.db.QueryRowContext(ctx, query, email).Scan(
+		&user.ID, &user.Email, &user.Name, &user.CreatedAt, &user.UpdatedAt,
 	)
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -75,26 +86,33 @@ func (r *userRepository) GetByEmail(email string) (*domain.User, error) {
 	return user, nil
 }
 
-func (r *userRepository) GetAll(limit, offset int) ([]domain.User, int, error) {
-	var total int
+func (r *userRepository) GetAll(ctx context.Context, limit, offset int) (users []domain.User, total int, err error) {
+	ctx, cancel := context.WithTimeout(ctx, 10 * time.Second)
+	defer cancel()
+
 	countQuery := "SELECT COUNT(*) FROM users;"
 
-	err := r.db.QueryRow(countQuery).Scan(&total)
+	err = r.db.QueryRowContext(ctx, countQuery).Scan(&total)
 	if err != nil {
 		return nil, 0, fmt.Errorf("error counting users: %w", err)
 	}
 
-	query := "SELECT id, name, email, created_at, updated_at FROM users;"
-	rows, err := r.db.Query(query)
+	query := "SELECT id, email, name, created_at, updated_at FROM users ORDER BY id LIMIT $1 OFFSET $2;"
+	rows, err := r.db.QueryContext(ctx, query, limit, offset)
 	if err != nil {
 		return nil, 0, fmt.Errorf("error getting users: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		errRows := rows.Close()
+		if errRows != nil {
+			err = errRows
+		}
+	}()
 
-	users := []domain.User{}
+	users = []domain.User{}
 	for rows.Next() {
 		var user domain.User
-		err = rows.Scan(&user.ID, &user.Name, &user.Email, &user.CreatedAt, &user.UpdatedAt)
+		err = rows.Scan(&user.ID, &user.Email, &user.Name, &user.CreatedAt, &user.UpdatedAt)
 		if err != nil {
 			return nil, 0, fmt.Errorf("error scanning user: %w", err)
 		}
@@ -104,26 +122,33 @@ func (r *userRepository) GetAll(limit, offset int) ([]domain.User, int, error) {
 	return users, total, nil
 }
 
-func (r *userRepository) Update(id int, user *domain.User) error {
+func (r *userRepository) Update(ctx context.Context, id int, user *domain.User) error {
+	ctx, cancel := context.WithTimeout(ctx, 5 * time.Second)
+	defer cancel()
+
 	query := `
 	UPDATE users
 	SET email = $1, name = $2, updated_at = CURRENT_TIMESTAMP
 	WHERE id = $3
 	RETURNING updated_at;`
 
-	err := r.db.QueryRow(query, user.Email, user.Name, id).Scan(&user.UpdatedAt)
+	err := r.db.QueryRowContext(ctx, query, user.Email, user.Name, id).Scan(&user.UpdatedAt)
 	if err == sql.ErrNoRows {
-		return nil
+		return fmt.Errorf("user not found")
 	}
 	if err != nil {
 		return fmt.Errorf("error updating user: %w", err)
 	}
+	user.ID = id
 	return nil
 }
 
-func (r *userRepository) Delete(id int) error {
+func (r *userRepository) Delete(ctx context.Context, id int) error {
+	ctx, cancel := context.WithTimeout(ctx, 5 * time.Second)
+	defer cancel()
+
 	query := `DELETE FROM users WHERE id = $1;`
-	result, err := r.db.Exec(query, id)
+	result, err := r.db.ExecContext(ctx, query, id)
 	if err != nil {
 		return fmt.Errorf("error deleting user: %w", err)
 	}

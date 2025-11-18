@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -20,16 +21,16 @@ func NewUserService(repo domain.UserRepository, logger *zap.Logger) domain.UserS
 	}
 }
 
-func (s *userService) CreateUser(req *domain.CreateUserRequest) (*domain.User, error) {
+func (s *userService) CreateUser(ctx context.Context, req *domain.CreateUserRequest) (*domain.User, error) {
 	email := strings.ToLower(strings.TrimSpace(req.Email))
 
-	existing, err := s.repo.GetByEmail(email)
+	existing, err := s.repo.GetByEmail(ctx, email)
 	if err != nil {
 		s.logger.Error("Error checking existing user", zap.Error(err))
 		return nil, fmt.Errorf("failed to check existing user: %w", err)
 	}
 	if existing != nil {
-		return nil, fmt.Errorf("user with email %s already exists", email)
+		return nil, fmt.Errorf("user with email already exists")
 	}
 
 	user := &domain.User{
@@ -37,7 +38,7 @@ func (s *userService) CreateUser(req *domain.CreateUserRequest) (*domain.User, e
 		Name:  strings.TrimSpace(req.Name),
 	}
 
-	if err := s.repo.Create(user); err != nil {
+	if err := s.repo.Create(ctx, user); err != nil {
 		s.logger.Error("Error creating user", zap.Error(err))
 		return nil, fmt.Errorf("failed to create a user: %w", err)
 	}
@@ -46,8 +47,8 @@ func (s *userService) CreateUser(req *domain.CreateUserRequest) (*domain.User, e
 	return user, nil
 }
 
-func (s *userService) GetUser(id int) (*domain.User, error) {
-	user, err := s.repo.GetByID(id)
+func (s *userService) GetUser(ctx context.Context, id int) (*domain.User, error) {
+	user, err := s.repo.GetByID(ctx, id)
 	if err != nil {
 		s.logger.Error("Error getting user", zap.Error(err))
 		return nil, fmt.Errorf("failed to get user: %w", err)
@@ -59,15 +60,15 @@ func (s *userService) GetUser(id int) (*domain.User, error) {
 	return user, nil
 }
 
-func (s *userService) GetUsers(limit, offset int) (*domain.PaginationResponse, error) {
-	if limit < 0 || limit > 100 {
+func (s *userService) GetUsers(ctx context.Context, limit, offset int) (*domain.PaginationResponse, error) {
+	if limit <= 0 || limit > 100 {
 		limit = 10
 	}
 	if offset < 0 {
 		offset = 0
 	}
 
-	users, total, err := s.repo.GetAll(limit, offset)
+	users, total, err := s.repo.GetAll(ctx, limit, offset)
 	if err != nil {
 		s.logger.Error("Error getting all users", zap.Error(err))
 		return nil, fmt.Errorf("failed to get all users: %w", err)
@@ -84,8 +85,8 @@ func (s *userService) GetUsers(limit, offset int) (*domain.PaginationResponse, e
 	}, nil
 }
 
-func (s *userService) UpdateUser(id int, req *domain.UpdateUserRequest) (*domain.User, error) {
-	existing, err := s.repo.GetByID(id)
+func (s *userService) UpdateUser(ctx context.Context, id int, req *domain.UpdateUserRequest) (*domain.User, error) {
+	existing, err := s.repo.GetByID(ctx, id)
 	if err != nil {
 		s.logger.Error("Error getting user by id", zap.Error(err))
 		return nil, fmt.Errorf("failed to get user by id: %w", err)
@@ -98,13 +99,13 @@ func (s *userService) UpdateUser(id int, req *domain.UpdateUserRequest) (*domain
 		email := strings.ToLower(strings.TrimSpace(req.Email))
 
 		if email != existing.Email {
-			emailExists, err := s.repo.GetByEmail(email)
+			emailExists, err := s.repo.GetByEmail(ctx, email)
 			if err != nil {
 				s.logger.Error("Error checking email availability", zap.Error(err))
 				return nil, fmt.Errorf("failed to check email availability: %w", err)
 			}
 			if emailExists != nil {
-				return nil, fmt.Errorf("email %s already in use", email)
+				return nil, fmt.Errorf("email already in use")
 			}
 			existing.Email = email
 		}
@@ -113,7 +114,7 @@ func (s *userService) UpdateUser(id int, req *domain.UpdateUserRequest) (*domain
 		existing.Name = strings.TrimSpace(req.Name)
 	}
 
-	if err := s.repo.Update(id, existing); err != nil {
+	if err := s.repo.Update(ctx, id, existing); err != nil {
 		s.logger.Error("Error updating user", zap.Int("user_id", id), zap.Error(err))
 		return nil, fmt.Errorf("failed to update user with id %d: %w", id, err)
 	}
@@ -122,8 +123,8 @@ func (s *userService) UpdateUser(id int, req *domain.UpdateUserRequest) (*domain
 	return existing, nil
 }
 
-func (s *userService) DeleteUser(id int) error {
-	if err := s.repo.Delete(id); err != nil {
+func (s *userService) DeleteUser(ctx context.Context, id int) error {
+	if err := s.repo.Delete(ctx, id); err != nil {
 		s.logger.Error("Error deleting user", zap.Int("user_id", id), zap.Error(err))
 		return fmt.Errorf("failed to delete user with id %d: %w", id, err)
 	}

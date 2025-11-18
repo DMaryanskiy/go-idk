@@ -1,6 +1,7 @@
 package database
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"time"
@@ -22,7 +23,10 @@ func New(connStr string, maxOpen, maxIdle int, maxLifetime time.Duration) (*DB, 
 	db.SetMaxIdleConns(maxIdle)
 	db.SetConnMaxLifetime(maxLifetime)
 
-	if err := db.Ping(); err != nil {
+	ctx, cancel := context.WithTimeout(context.Background(), 5 * time.Second)
+	defer cancel()
+
+	if err := db.PingContext(ctx); err != nil {
 		return nil, fmt.Errorf("error connecting to database: %w", err)
 	}
 
@@ -31,6 +35,9 @@ func New(connStr string, maxOpen, maxIdle int, maxLifetime time.Duration) (*DB, 
 
 // TODO: add migration tool later
 func (db *DB) Migrate() error {
+	ctx, cancel := context.WithTimeout(context.Background(), 30 * time.Second)
+	defer cancel()
+
 	query := `
     CREATE TABLE IF NOT EXISTS users (
         id SERIAL PRIMARY KEY,
@@ -43,6 +50,6 @@ func (db *DB) Migrate() error {
     CREATE INDEX IF NOT EXISTS idx_users_created_at ON users(created_at);
     `
 
-	_, err := db.Exec(query)
+	_, err := db.ExecContext(ctx, query)
 	return err
 }
